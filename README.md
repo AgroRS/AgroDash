@@ -8,18 +8,18 @@ e publica o resultado como um link público fixo via GitHub Pages.
 
 | Bloco | Fonte | Status |
 |---|---|---|
-| 1 · Clima | NOAA CPC (ONI) | ✅ Pronto — sem chave necessária |
-| 4 · Hedge Funds | CFTC (Legacy COT) | ✅ Pronto — sem chave necessária |
-| 3 · Oferta & Demanda | USDA/FAS PSD Online | ⚠️ Esqueleto — precisa de chave grátis + validação do endpoint (ver `scripts/fetch_oferta_demanda.py`) |
+| 1 · Clima | NOAA CPC (ONI) | ✅ Pronto e validado com chamada real — sem chave necessária |
+| 4 · Hedge Funds | CFTC (Legacy COT) | ✅ Pronto e validado com chamada real — sem chave necessária |
+| 3 · Oferta & Demanda | USDA/FAS PSD | ✅ Pronto e validado com chamada real — precisa da chave `USDA_PSD_API_KEY` (ver passo 4 do Setup) |
 | 2 · Condições de lavoura | Conab, USDA/NASS, Bolsa de Cereales | ❌ Não incluído ainda (Conab e Bolsa de Cereales não têm API pública; NASS tem, pode ser adicionado depois) |
 | 5 · Contratos & Câmbio | CBOT/ICE, USD/BRL | ❌ Não incluído ainda (preço de futuros geralmente é fonte paga) |
 
-Ou seja: depois de configurado, **os Blocos 1 e 4 vão se manter sempre
-atualizados sozinhos**. O Bloco 3 fica pronto pra ligar assim que alguém
-validar o endpoint da API do USDA (o script já está escrito, só precisa de
-um teste real com internet de verdade — o Claude Code consegue fazer isso).
-Blocos 2 e 5 continuam precisando de atualização manual (mesmo processo de
-hoje: você exporta a planilha/CSV e me manda).
+Ou seja: depois de configurado (e com a chave do Bloco 3 cadastrada), **os
+Blocos 1, 3 e 4 se mantêm sempre atualizados sozinhos**. Blocos 2 e 5
+continuam precisando de atualização manual (mesmo processo de hoje: você
+exporta a planilha/CSV e me manda). O Bloco 3 atualiza por enquanto só as
+safras fechadas (campo `world`); as colunas "correntes" e os recortes por
+país/importador/esmagamento ficam para uma próxima iteração.
 
 ## Setup (uma vez só)
 
@@ -61,8 +61,8 @@ seu-repo/
 Esse link **nunca muda** — sempre mostra a versão mais recente do arquivo.
 
 ### 4. Chave da API do USDA/PSD (só se for ligar o Bloco 3)
-1. Acesse https://apps.fas.usda.gov/psdonline/
-2. Crie uma conta gratuita e gere uma API key (menu "API")
+1. Acesse https://apps.fas.usda.gov/opendataweb/home
+2. Crie uma conta gratuita e gere uma API key
 3. No repositório GitHub: **Settings → Secrets and variables → Actions →
    New repository secret**
 4. Nome: `USDA_PSD_API_KEY` · Valor: cole a chave gerada
@@ -84,25 +84,26 @@ horário, edite a linha `cron` em `.github/workflows/update.yml`.
 
 ## Nota para quem for validar/ajustar isto (Claude Code)
 
-Os três scripts em `scripts/fetch_*.py` foram escritos com bases de
-conhecimento diferentes de confiança:
+Os três scripts em `scripts/fetch_*.py` já foram testados com chamadas
+reais (via `workflow_dispatch` no GitHub Actions, que tem internet
+plena — sandboxes de desenvolvimento costumam bloquear esses domínios):
 
-- **`fetch_clima.py`** — fonte é um arquivo texto simples e estável do
-  NOAA, formato bem conhecido. Confiança alta, mas nunca testado com
-  chamada real nesta conversa — validar mesmo assim.
-- **`fetch_hedge_funds.py`** — a API (Socrata, CFTC) foi explorada durante
-  o desenvolvimento do dashboard original, então a estrutura de campos é
-  conhecida (`report_date_as_yyyy_mm_dd`, `noncomm_positions_long_all`,
-  `noncomm_positions_short_all`, `market_and_exchange_names`). O que não
-  pôde ser validado foi passar parâmetros `$where`/`$order`/`$limit` na
-  prática (a ferramenta de fetch do Claude.ai ignorava esses parâmetros —
-  ver conversa original). Com `requests` puro isso deve funcionar
-  normalmente, mas é o primeiro ponto a testar.
-- **`fetch_oferta_demanda.py`** — confiança mais baixa. O endpoint e o
-  formato de resposta da API do PSD Online **não foram testados**, foram
-  montados a partir de conhecimento geral sobre a API. Tratar como um
-  rascunho: rodar, ver o erro real, ajustar contra a documentação oficial
-  (https://apps.fas.usda.gov/psdonline/app/index.html#/app/about).
+- **`fetch_clima.py`** — validado. Fonte é um arquivo texto simples e
+  estável do NOAA.
+- **`fetch_hedge_funds.py`** — validado, incluindo os parâmetros SoQL
+  (`$where`/`$order`/`$limit`) contra a API Socrata do CFTC, que
+  funcionam normalmente com `requests` puro.
+- **`fetch_oferta_demanda.py`** — validado em 2026-08-10. A API legada
+  documentada originalmente (`apps.fas.usda.gov/PSDOnlineDataServices`)
+  está **descontinuada** — responde 403 "Bad API Key" mesmo com uma
+  chave válida. A API ativa é `https://api.fas.usda.gov/api/psd/...`
+  com header `X-Api-Key` (não `API_KEY`). O endpoint
+  `/psd/commodity/{code}/world/year/{year}` devolve todos os atributos
+  de uma vez, identificados por `attributeId` numérico — os nomes vêm
+  de `/psd/commodityAttributes`. IDs confirmados: Beginning Stocks=20,
+  Production=28, Domestic Consumption=125, Ending Stocks=176. Os
+  códigos de commodity (soja=2222000, milho=0440000 — zero à esquerda
+  obrigatório, algodao=2631000) foram confirmados contra dados reais.
 
 Todos os scripts usam `scripts/inject_utils.py` para gravar o resultado de
 volta no `index.html`, substituindo o `const NOME_DA_VARIAVEL = {...}`
