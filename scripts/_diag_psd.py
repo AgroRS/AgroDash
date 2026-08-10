@@ -1,85 +1,71 @@
 """
 Script de DIAGNÓSTICO temporário — não faz parte da automação normal.
-Testa, contra a internet real (via GitHub Actions), duas gerações possíveis
-da API do USDA/FAS PSD que apareceram em fontes diferentes, para descobrir
-qual está de fato ativa e qual o formato real de resposta:
-
-  A) apps.fas.usda.gov/OpenData/api/psd/...   header: API_KEY
-  B) api.fas.usda.gov/api/psd/...             header: X-Api-Key
+Confirmado: api.fas.usda.gov + header X-Api-Key é a API ativa.
+Agora extrai os attributeIds exatos que fetch_oferta_demanda.py precisa
+(Beginning Stocks, Production, Domestic Consumption, Ending Stocks) e
+mostra o payload mundial completo pra soja/milho/algodão em 2023.
 
 Remover este arquivo (e o workflow scripts-diag.yml) depois de usar.
 """
+import json
 import os
 import requests
 
 API_KEY = os.environ.get("USDA_PSD_API_KEY")
+BASE = "https://api.fas.usda.gov/api"
+HEADERS = {"X-Api-Key": API_KEY, "Accept": "application/json"}
 
-CANDIDATES = [
-    {
-        "label": "A) apps.fas.usda.gov/OpenData (API_KEY)",
-        "base": "https://apps.fas.usda.gov/OpenData/api",
-        "header_name": "API_KEY",
-    },
-    {
-        "label": "B) api.fas.usda.gov (X-Api-Key)",
-        "base": "https://api.fas.usda.gov/api",
-        "header_name": "X-Api-Key",
-    },
-    {
-        "label": "C) legado apps.fas.usda.gov/PSDOnlineDataServices (API_KEY)",
-        "base": "https://apps.fas.usda.gov/PSDOnlineDataServices/api",
-        "header_name": "API_KEY",
-        "legacy_path": True,
-    },
+WANTED_ATTRS = [
+    "Beginning Stocks",
+    "Production",
+    "Domestic Consumption",
+    "Ending Stocks",
+    "Total Distribution",
+    "Imports",
+    "Exports",
 ]
 
-SOYBEAN_CODE = "2222000"
-YEAR = 2023
-
-
-def probe(candidate):
-    print(f"\n=== {candidate['label']} ===")
-    headers = {candidate["header_name"]: API_KEY, "Accept": "application/json"}
-
-    if candidate.get("legacy_path"):
-        url = f"{candidate['base']}/CommodityData/GetCommodityDataByYear"
-        params = {"commodityCode": SOYBEAN_CODE, "marketYear": YEAR}
-        try:
-            r = requests.get(url, headers=headers, params=params, timeout=20)
-            print(f"GET {r.url}")
-            print(f"status={r.status_code}")
-            print(f"body[:500]={r.text[:500]!r}")
-        except Exception as e:
-            print(f"ERRO: {e!r}")
-        return
-
-    # commodityAttributes (mapa attributeId -> nome)
-    try:
-        url_attrs = f"{candidate['base']}/psd/commodityAttributes"
-        r = requests.get(url_attrs, headers=headers, timeout=20)
-        print(f"GET {url_attrs}")
-        print(f"status={r.status_code}")
-        print(f"body[:500]={r.text[:500]!r}")
-    except Exception as e:
-        print(f"ERRO commodityAttributes: {e!r}")
-
-    # dados mundiais de soja para 2023
-    try:
-        url_world = f"{candidate['base']}/psd/commodity/{SOYBEAN_CODE}/world/year/{YEAR}"
-        r = requests.get(url_world, headers=headers, timeout=20)
-        print(f"GET {url_world}")
-        print(f"status={r.status_code}")
-        print(f"body[:800]={r.text[:800]!r}")
-    except Exception as e:
-        print(f"ERRO world/year: {e!r}")
+COMMODITY_CODES = {
+    "soja": "2222000",
+    "milho": "0440000",
+    "algodao": "2631000",
+}
 
 
 def main():
     if not API_KEY:
-        print("USDA_PSD_API_KEY não configurada — abortando diagnóstico.")
+        print("USDA_PSD_API_KEY não configurada.")
         return
-    for c in CANDIDATES:
-        probe(c)
+
+    r = requests.get(f"{BASE}/psd/commodityAttributes", headers=HEADERS, timeout=20)
+    attrs = r.json()
+    print(f"Total de atributos: {len(attrs)}")
+    name_to_id = {}
+    for a in attrs:
+        if a["attributeName"] in WANTED_ATTRS:
+            print(f"  {a['attributeId']:>4} -> {a['attributeName']}")
+            name_to_id[a["attributeName"]] = a["attributeId"]
+
+    for label, code in COMMODITY_CODES.items():
+        print(f"\n=== {label} (code={code}) world/year/2023 ===")
+        r = requests.get(f"{BASE}/psd/commodity/{code}/world/year/2023", headers=HEADERS, timeout=20)
+        print(f"status={r.status_code}")
+        if r.status_code != 200:
+            print(f"body={r.text[:300]!r}")
+            continue
+        data = r.json()
+        print(f"registros retornados: {len(data)}")
+        by_attr = {}
+        for row in data:
+            by_attr.setdefault(row["attributeId"], []).append(row)
+        for name, attr_id in name_to_id.items():
+            rows = by_attr.get(attr_id, [])
+            print(f"  {name} (id={attr_id}): {[ (row['unitId'], row['value']) for row in rows ]}")
+
+    # também testa se o commodityCode do milho com zero à esquerda funciona
+    print("\n=== teste commodityCode milho SEM zero à esquerda (440000) ===")
+    r = requests.get(f"{BASE}/psd/commodity/440000/world/year/2023", headers=HEADERS, timeout=20)
+    print(f"status={r.status_code}, registros={len(r.json()) if r.status_code == 200 else r.text[:200]}")
 
 
 if __name__ == "__main__":
