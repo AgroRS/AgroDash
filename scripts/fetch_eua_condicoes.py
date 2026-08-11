@@ -17,8 +17,14 @@ Lógica dos dados:
   separadas: "PCT EXCELLENT" e "PCT GOOD". Isso é buscado e somado aqui.
 - Mesma lógica para umidade de subsolo: "PCT ADEQUATE" + "PCT SURPLUS".
 - O dashboard usa rótulos de semana no formato "DD/MM" (dia/mês, PT-BR) —
-  a API retorna `week_ending` em formato YYYY-MM-DD; a conversão é feita
-  aqui.
+  a API retorna `week_ending` em formato YYYY-MM-DD (sempre um domingo).
+  IMPORTANTE: o dashboard rotula cada semana pela SEXTA-FEIRA seguinte
+  (domingo + 5 dias), não pelo próprio domingo — ver `_week_label()` e
+  `DASHBOARD_LABEL_OFFSET_DAYS`. Confirmado comparando os rótulos já
+  existentes no HTML contra as datas reais da API: sem esse ajuste,
+  `merge_into_series` nunca encontra a semana correspondente e a
+  atualização vira um no-op silencioso (roda sem erro, mas não muda
+  nada — foi exatamente o que aconteceu na primeira validação real).
 - Só a safra corrente (chave "2025/26" no HTML, ajustar para "2026/27"
   quando a safra virar) é atualizada; anos anteriores não mudam.
 
@@ -75,6 +81,21 @@ def _nass_get(params: dict):
     return resp.json().get("data", [])
 
 
+# O `week_ending` da API do NASS é sempre um domingo (fim da semana de
+# levantamento, segunda-domingo). O dashboard rotula cada semana pela
+# sexta-feira seguinte (domingo + 5 dias) — confirmado comparando os
+# rótulos já existentes no HTML contra as datas reais retornadas pela
+# API. Sem esse ajuste, merge_into_series nunca encontra a semana
+# correspondente e a atualização vira um no-op silencioso.
+DASHBOARD_LABEL_OFFSET_DAYS = 5
+
+
+def _week_label(week_ending: str) -> str:
+    date = datetime.datetime.strptime(week_ending, "%Y-%m-%d")
+    date += datetime.timedelta(days=DASHBOARD_LABEL_OFFSET_DAYS)
+    return date.strftime("%d/%m")
+
+
 def fetch_condition_good_excellent(commodity: str):
     """Retorna {week_label('DD/MM'): pct_bom_mais_excelente} para a safra
     corrente."""
@@ -94,9 +115,7 @@ def fetch_condition_good_excellent(commodity: str):
             continue
         if "PCT GOOD" in desc and "PCT GOOD," not in desc and "VERY" in desc:
             continue  # evita casar "VERY POOR"/"VERY GOOD" por engano
-        week_ending = r["week_ending"]  # "YYYY-MM-DD"
-        date = datetime.datetime.strptime(week_ending, "%Y-%m-%d")
-        label = date.strftime("%d/%m")
+        label = _week_label(r["week_ending"])
         val = float(r["Value"].replace(",", ""))
         by_week.setdefault(label, 0.0)
         by_week[label] += val
@@ -122,9 +141,7 @@ def fetch_subsoil_adequate_surplus():
     })
     by_week = {}
     for r in rows + rows_surplus:
-        week_ending = r["week_ending"]
-        date = datetime.datetime.strptime(week_ending, "%Y-%m-%d")
-        label = date.strftime("%d/%m")
+        label = _week_label(r["week_ending"])
         val = float(r["Value"].replace(",", ""))
         by_week.setdefault(label, 0.0)
         by_week[label] += val
