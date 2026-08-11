@@ -26,7 +26,7 @@ Validado com chamada real (via GitHub Actions) em 2026-08-11:
 - A consulta de condição (soja/milho) funcionou de primeira — os
   `short_desc` "SOYBEANS - CONDITION, MEASURED IN PCT EXCELLENT" etc.
   estavam corretos.
-- A consulta de umidade de subsolo dava 400 Bad Request por dois motivos:
+- A consulta de umidade de subsolo dava 400 Bad Request por três motivos:
   1. `group_desc: "SOIL"` não existe na taxonomia da API (confirmado via
      `/api/get_param_values/?param=group_desc` — a lista não tem nenhum
      valor contendo "SOIL"). Removido.
@@ -35,6 +35,13 @@ Validado com chamada real (via GitHub Actions) em 2026-08-11:
      `/api/get_param_values/?param=short_desc`) é
      "SOIL, SUBSOIL - MOISTURE, MEASURED IN PCT ADEQUATE" (e "...SURPLUS"
      para a outra categoria).
+  3. O erro real e mais importante: `sector_desc: "ENVIRONMENTAL"` está
+     errado — a umidade de solo do Crop Progress fica no mesmo setor das
+     condições de lavoura, `sector_desc: "CROPS"` (confirmado testando
+     várias combinações de parâmetros contra a API real; com
+     `sector_desc="CROPS"` + `agg_level_desc="NATIONAL"` a API retornou
+     19 linhas para 2026, uma por semana — consistente com o número de
+     relatórios semanais já publicados na safra).
 
 IMPORTANTE PARA QUEM FOR VALIDAR (Claude Code):
 - Conferir a MARKETING_YEAR / rótulo de safra corrente — está fixo como
@@ -99,7 +106,7 @@ def fetch_condition_good_excellent(commodity: str):
 def fetch_subsoil_adequate_surplus():
     rows = _nass_get({
         "source_desc": "SURVEY",
-        "sector_desc": "ENVIRONMENTAL",
+        "sector_desc": "CROPS",
         "short_desc": "SOIL, SUBSOIL - MOISTURE, MEASURED IN PCT ADEQUATE",
         "agg_level_desc": "NATIONAL",
         "freq_desc": "WEEKLY",
@@ -107,7 +114,7 @@ def fetch_subsoil_adequate_surplus():
     })
     rows_surplus = _nass_get({
         "source_desc": "SURVEY",
-        "sector_desc": "ENVIRONMENTAL",
+        "sector_desc": "CROPS",
         "short_desc": "SOIL, SUBSOIL - MOISTURE, MEASURED IN PCT SURPLUS",
         "agg_level_desc": "NATIONAL",
         "freq_desc": "WEEKLY",
