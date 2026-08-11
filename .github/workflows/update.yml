@@ -28,6 +28,7 @@ jobs:
       - name: Rodar os scripts de atualização
         env:
           USDA_PSD_API_KEY: ${{ secrets.USDA_PSD_API_KEY }}
+          NASS_API_KEY: ${{ secrets.NASS_API_KEY }}
         working-directory: scripts
         run: python main.py ../index.html
 

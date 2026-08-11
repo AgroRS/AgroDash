@@ -13,6 +13,7 @@ import fetch_clima
 import fetch_hedge_funds
 import fetch_oferta_demanda
 import fetch_prices
+import fetch_eua_condicoes
 
 
 def run_step(name, fn, path):
@@ -49,6 +50,11 @@ def main():
     results["precos"] = run_step(
         "precos (CBOT/ICE/USD-BRL)",
         lambda p: fetch_prices.save_html(p, fetch_prices.update_html(p)),
+        path,
+    )
+    results["eua_condicoes"] = run_step(
+        "eua_condicoes (NASS)",
+        lambda p: fetch_eua_condicoes.save_html(p, fetch_eua_condicoes.update_html(p)),
         path,
     )
 
