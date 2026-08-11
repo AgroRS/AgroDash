@@ -12,11 +12,13 @@ e publica o resultado como um link público fixo via GitHub Pages.
 | 4 · Hedge Funds | CFTC (Legacy COT) | ✅ Pronto e validado com chamada real — sem chave necessária |
 | 3 · Oferta & Demanda | USDA/FAS PSD | ✅ Pronto e validado com chamada real — precisa da chave `USDA_PSD_API_KEY` (ver passo 4 do Setup) |
 | 5 · Contratos & Câmbio | Yahoo Finance (CBOT soja/milho, ICE algodão) + Banco Central do Brasil (USD/BRL) | ✅ Pronto e validado com chamada real — sem chave necessária |
-| 2 · Condições de lavoura | Conab, USDA/NASS, Bolsa de Cereales | ❌ Não incluído ainda (Conab e Bolsa de Cereales não têm API pública; NASS tem, pode ser adicionado depois) |
+| 2 · Condições de lavoura (EUA) | USDA/NASS Quick Stats | ✅ Pronto e validado com chamada real — precisa da chave `NASS_API_KEY` (ver passo 4b do Setup) |
+| 2 · Condições de lavoura (Brasil/Argentina) | Conab, Bolsa de Cereales | ❌ Não incluído — sem API pública conhecida, continua manual |
 
-Ou seja: depois de configurado (e com a chave do Bloco 3 cadastrada), **os
-Blocos 1, 3, 4 e 5 se mantêm sempre atualizados sozinhos**. O Bloco 2
-continua precisando de atualização manual (mesmo processo de hoje: você
+Ou seja: depois de configurado (e com as chaves dos Blocos 2 e 3
+cadastradas), **os Blocos 1, 2 (parte EUA), 3, 4 e 5 se mantêm sempre
+atualizados sozinhos**. Conab e Bolsa de Cereales (parte do Bloco 2)
+continuam precisando de atualização manual (mesmo processo de hoje: você
 exporta a planilha/CSV e me manda). O Bloco 3 atualiza por enquanto só as
 safras fechadas (campo `world`); as colunas "correntes" e os recortes por
 país/importador/esmagamento ficam para uma próxima iteração.
@@ -49,6 +51,7 @@ seu-repo/
     ├── fetch_hedge_funds.py
     ├── fetch_oferta_demanda.py
     ├── fetch_prices.py
+    ├── fetch_eua_condicoes.py
     └── main.py
 ```
 
@@ -70,6 +73,16 @@ Esse link **nunca muda** — sempre mostra a versão mais recente do arquivo.
 
 Sem esse passo, o script do Bloco 3 simplesmente não roda (os outros dois
 continuam funcionando normalmente).
+
+### 4b. Chave da API do USDA/NASS (só se for ligar o Bloco 2 · EUA)
+1. Acesse https://quickstats.nass.usda.gov/api
+2. Preencha o formulário "Request an API Key" (chega por e-mail em minutos)
+3. No repositório GitHub, mesmo caminho do passo anterior: **New
+   repository secret**
+4. Nome: `NASS_API_KEY` · Valor: cole a chave recebida
+
+Sem esse passo, o script `fetch_eua_condicoes.py` simplesmente não roda
+(os outros continuam funcionando normalmente).
 
 ### 5. Testar
 Em **Actions**, escolha o workflow "Atualizar DashAgro" e clique em **Run
@@ -114,6 +127,23 @@ plena — sandboxes de desenvolvimento costumam bloquear esses domínios):
   ~US$4,61 vs. ~US$4,40, algodão ~83,8¢ vs. ~81-83¢, USD/BRL 5,1285 vs.
   ~5,10-5,11) — dentro da margem esperada por causa do timing exato do
   fechamento semanal.
+- **`fetch_eua_condicoes.py`** — validado em 2026-08-11, depois de 4
+  bugs reais encontrados e corrigidos contra a API de verdade:
+  1. `group_desc: "SOIL"` não existe na taxonomia da API — removido.
+  2. `short_desc` com a ordem das palavras errada ("SOIL, MOISTURE,
+     SUBSOIL..." em vez de "SOIL, SUBSOIL - MOISTURE...").
+  3. `sector_desc: "ENVIRONMENTAL"` errado — umidade de solo do Crop
+     Progress fica em `sector_desc: "CROPS"`, mesmo setor da condição
+     de lavoura.
+  4. O mais sutil: o script rodava sem erro e reportava sucesso, mas
+     não atualizava nada. O `week_ending` da API é sempre um domingo;
+     o dashboard rotula cada semana pela sexta-feira seguinte (+5
+     dias). Sem esse ajuste, a busca por rótulo de semana nunca batia
+     — um no-op silencioso, só percebido comparando o diff real do
+     `git commit` (nenhuma mudança) contra o esperado. Depois de
+     corrigido, os valores batem exatamente com o Crop Progress
+     publicado (DTN/Brownfield): milho 61% e soja 63% good-to-excellent
+     na semana de 02/08/2026, entre outras semanas conferidas.
 
 Todos os scripts usam `scripts/inject_utils.py` para gravar o resultado de
 volta no `index.html`, substituindo o `const NOME_DA_VARIAVEL = {...}`
