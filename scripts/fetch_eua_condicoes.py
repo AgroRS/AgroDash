@@ -22,10 +22,21 @@ Lógica dos dados:
 - Só a safra corrente (chave "2025/26" no HTML, ajustar para "2026/27"
   quando a safra virar) é atualizada; anos anteriores não mudam.
 
+Validado com chamada real (via GitHub Actions) em 2026-08-11:
+- A consulta de condição (soja/milho) funcionou de primeira — os
+  `short_desc` "SOYBEANS - CONDITION, MEASURED IN PCT EXCELLENT" etc.
+  estavam corretos.
+- A consulta de umidade de subsolo dava 400 Bad Request por dois motivos:
+  1. `group_desc: "SOIL"` não existe na taxonomia da API (confirmado via
+     `/api/get_param_values/?param=group_desc` — a lista não tem nenhum
+     valor contendo "SOIL"). Removido.
+  2. O `short_desc` usado, "SOIL, MOISTURE, SUBSOIL - PCT ADEQUATE", tinha
+     a ordem das palavras errada. O valor real (confirmado via
+     `/api/get_param_values/?param=short_desc`) é
+     "SOIL, SUBSOIL - MOISTURE, MEASURED IN PCT ADEQUATE" (e "...SURPLUS"
+     para a outra categoria).
+
 IMPORTANTE PARA QUEM FOR VALIDAR (Claude Code):
-- Conferir se `short_desc` bate exatamente com o que a API espera (os
-  valores usados abaixo são os documentados publicamente, mas o texto
-  precisa ser exato, incluindo maiúsculas/vírgulas).
 - Conferir a MARKETING_YEAR / rótulo de safra corrente — está fixo como
   "2025/26" abaixo; atualizar manualmente quando a safra virar (ou, numa
   segunda iteração, calcular isso a partir da data atual).
@@ -89,8 +100,7 @@ def fetch_subsoil_adequate_surplus():
     rows = _nass_get({
         "source_desc": "SURVEY",
         "sector_desc": "ENVIRONMENTAL",
-        "group_desc": "SOIL",
-        "short_desc": "SOIL, MOISTURE, SUBSOIL - PCT ADEQUATE",
+        "short_desc": "SOIL, SUBSOIL - MOISTURE, MEASURED IN PCT ADEQUATE",
         "agg_level_desc": "NATIONAL",
         "freq_desc": "WEEKLY",
         "year": YEAR,
@@ -98,8 +108,7 @@ def fetch_subsoil_adequate_surplus():
     rows_surplus = _nass_get({
         "source_desc": "SURVEY",
         "sector_desc": "ENVIRONMENTAL",
-        "group_desc": "SOIL",
-        "short_desc": "SOIL, MOISTURE, SUBSOIL - PCT SURPLUS",
+        "short_desc": "SOIL, SUBSOIL - MOISTURE, MEASURED IN PCT SURPLUS",
         "agg_level_desc": "NATIONAL",
         "freq_desc": "WEEKLY",
         "year": YEAR,
