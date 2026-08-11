@@ -7,36 +7,39 @@ jobs:
   diag:
     runs-on: ubuntu-latest
     steps:
-      - name: CKAN dados.gov.br — buscar datasets Conab progresso de safra
+      - name: CKAN dados.gov.br — verboso
         run: |
-          echo "=== dados.gov.br CKAN package_search ==="
-          curl -sS "https://dados.gov.br/api/3/action/package_search?q=conab+progresso+safra&rows=10" | head -c 4000
+          echo "=== status HTTP puro ==="
+          curl -sS -o /tmp/ckan1.json -w "status=%{http_code} size=%{size_download}\n" "https://dados.gov.br/api/3/action/package_search?q=conab%20progresso%20safra&rows=10"
+          echo "--- corpo ---"
+          cat /tmp/ckan1.json | head -c 3000
           echo ""
+          echo "=== busca por organization_id conab ==="
+          curl -sS -o /tmp/ckan2.json -w "status=%{http_code} size=%{size_download}\n" "https://dados.gov.br/api/3/action/organization_list?q=conab"
+          cat /tmp/ckan2.json | head -c 2000
           echo ""
-          echo "=== dados.gov.br CKAN package_search (organization=conab) ==="
-          curl -sS "https://dados.gov.br/api/3/action/package_search?q=organization:conab&rows=20" | head -c 4000
-          echo ""
+          echo "=== busca ampla por 'progresso de safra' ==="
+          curl -sS -o /tmp/ckan3.json -w "status=%{http_code} size=%{size_download}\n" "https://dados.gov.br/api/3/action/package_search?q=%22progresso%20de%20safra%22&rows=10"
+          cat /tmp/ckan3.json | head -c 3000
 
-      - name: Conab progresso-de-safra — HTML bruto
+      - name: Conab progresso-de-safra — procurar API/JSON embutido no HTML
         run: |
-          echo "=== conab.gov.br/info-agro/safras/progresso-de-safra ==="
           curl -sS -L "https://www.conab.gov.br/info-agro/safras/progresso-de-safra" -o /tmp/progresso.html
-          echo "status/size:"; wc -c /tmp/progresso.html
-          echo "--- links .csv/.xlsx/.xls/api encontrados ---"
-          grep -oE 'href="[^"]*\.(csv|xlsx|xls|json)"' /tmp/progresso.html | sort -u | head -40
-          echo "--- qualquer link contendo download ---"
-          grep -oE 'href="[^"]*download[^"]*"' /tmp/progresso.html | sort -u | head -40
+          echo "=== scripts externos (src=) ==="
+          grep -oE '<script[^>]*src="[^"]*"' /tmp/progresso.html | sort -u | head -30
+          echo ""
+          echo "=== qualquer referência a /api/ ou .json no HTML ==="
+          grep -oE '"[^"]*(/api/|\.json)[^"]*"' /tmp/progresso.html | sort -u | head -40
+          echo ""
+          echo "=== qualquer referência a 'window.' com dados embutidos ==="
+          grep -oE 'window\.[A-Za-z_]+\s*=' /tmp/progresso.html | sort -u | head -20
+          echo ""
+          echo "=== títulos/headings da página (contexto) ==="
+          grep -oE '<h[1-3][^>]*>[^<]*</h[1-3]>' /tmp/progresso.html | head -20
 
-      - name: Portal de Informações Agropecuárias — download-arquivos
+      - name: dados-abertos-m — conteúdo
         run: |
-          echo "=== portaldeinformacoes.conab.gov.br/download-arquivos.html ==="
-          curl -sS -L "https://portaldeinformacoes.conab.gov.br/download-arquivos.html" -o /tmp/portal.html
-          wc -c /tmp/portal.html
-          grep -oiE 'href="[^"]*"' /tmp/portal.html | grep -iE 'progresso|plantio|colheita|\.csv|\.xlsx|\.json' | sort -u | head -40
-
-      - name: dados.conab.gov.br (tentativa de subdomínio de dados abertos)
-        run: |
-          for url in "https://www.conab.gov.br/dados-abertos-m" "https://api.conab.gov.br" "https://dadosabertos.conab.gov.br"; do
-            echo "=== $url ==="
-            curl -sS -o /dev/null -w "status=%{http_code}\n" -L "$url" || echo "falhou"
-          done
+          curl -sS -L "https://www.conab.gov.br/dados-abertos-m" -o /tmp/da.html
+          wc -c /tmp/da.html
+          echo "--- links relevantes ---"
+          grep -oiE 'href="[^"]*"' /tmp/da.html | grep -iE 'progresso|safra|plantio|colheita|dataset|api|\.csv|\.json' | sort -u | head -40
