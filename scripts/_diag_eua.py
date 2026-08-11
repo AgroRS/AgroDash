@@ -82,20 +82,24 @@ def main():
     except Exception as e:
         print(f"ERRO get_param_values(short_desc): {e!r}")
 
-    print(f"\n=== tentativa direta (year={feu.YEAR}, sem group_desc) ===")
-    try:
-        rows_probe = feu._nass_get({
-            "source_desc": "SURVEY",
-            "sector_desc": "ENVIRONMENTAL",
-            "short_desc": "SOIL, MOISTURE, SUBSOIL - PCT ADEQUATE",
-            "freq_desc": "WEEKLY",
-            "year": feu.YEAR,
-        })
-        print(f"OK, total de linhas: {len(rows_probe)}")
-        if rows_probe:
-            print("exemplo:", json.dumps(rows_probe[0], ensure_ascii=False))
-    except Exception as e:
-        print(f"ERRO: {e!r}")
+    SHORT = "SOIL, SUBSOIL - MOISTURE, MEASURED IN PCT ADEQUATE"
+    combos = [
+        ("só short_desc + year", {"short_desc": SHORT, "year": feu.YEAR}),
+        ("+ freq_desc", {"short_desc": SHORT, "freq_desc": "WEEKLY", "year": feu.YEAR}),
+        ("+ source_desc=SURVEY", {"source_desc": "SURVEY", "short_desc": SHORT, "freq_desc": "WEEKLY", "year": feu.YEAR}),
+        ("+ sector_desc=CROPS (em vez de ENVIRONMENTAL)", {"source_desc": "SURVEY", "sector_desc": "CROPS", "short_desc": SHORT, "freq_desc": "WEEKLY", "year": feu.YEAR}),
+        ("+ agg_level_desc=NATIONAL, sem sector_desc", {"source_desc": "SURVEY", "short_desc": SHORT, "agg_level_desc": "NATIONAL", "freq_desc": "WEEKLY", "year": feu.YEAR}),
+        ("sem year (todas as safras)", {"source_desc": "SURVEY", "short_desc": SHORT, "freq_desc": "WEEKLY"}),
+    ]
+    for label, params in combos:
+        print(f"\n=== tentativa: {label} ===")
+        try:
+            rows_probe = feu._nass_get(params)
+            print(f"OK, total de linhas: {len(rows_probe)}")
+            if rows_probe:
+                print("exemplo:", json.dumps(rows_probe[0], ensure_ascii=False))
+        except Exception as e:
+            print(f"ERRO: {e!r}")
 
     print("\n=== fetch_subsoil_adequate_surplus() ===")
     try:
