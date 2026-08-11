@@ -11,7 +11,8 @@ import traceback
 
 import fetch_clima
 import fetch_hedge_funds
-import fetch_oferta_demanda  # ainda precisa de validação — ver docstring do arquivo
+import fetch_oferta_demanda
+import fetch_prices
 
 
 def run_step(name, fn, path):
@@ -43,6 +44,11 @@ def main():
     results["oferta_demanda"] = run_step(
         "oferta_demanda (USDA/PSD)",
         lambda p: fetch_oferta_demanda.save_html(p, fetch_oferta_demanda.update_html(p)),
+        path,
+    )
+    results["precos"] = run_step(
+        "precos (CBOT/ICE/USD-BRL)",
+        lambda p: fetch_prices.save_html(p, fetch_prices.update_html(p)),
         path,
     )
 
