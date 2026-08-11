@@ -11,12 +11,12 @@ e publica o resultado como um link público fixo via GitHub Pages.
 | 1 · Clima | NOAA CPC (ONI) | ✅ Pronto e validado com chamada real — sem chave necessária |
 | 4 · Hedge Funds | CFTC (Legacy COT) | ✅ Pronto e validado com chamada real — sem chave necessária |
 | 3 · Oferta & Demanda | USDA/FAS PSD | ✅ Pronto e validado com chamada real — precisa da chave `USDA_PSD_API_KEY` (ver passo 4 do Setup) |
+| 5 · Contratos & Câmbio | Yahoo Finance (CBOT soja/milho, ICE algodão) + Banco Central do Brasil (USD/BRL) | ✅ Pronto e validado com chamada real — sem chave necessária |
 | 2 · Condições de lavoura | Conab, USDA/NASS, Bolsa de Cereales | ❌ Não incluído ainda (Conab e Bolsa de Cereales não têm API pública; NASS tem, pode ser adicionado depois) |
-| 5 · Contratos & Câmbio | CBOT/ICE, USD/BRL | ❌ Não incluído ainda (preço de futuros geralmente é fonte paga) |
 
 Ou seja: depois de configurado (e com a chave do Bloco 3 cadastrada), **os
-Blocos 1, 3 e 4 se mantêm sempre atualizados sozinhos**. Blocos 2 e 5
-continuam precisando de atualização manual (mesmo processo de hoje: você
+Blocos 1, 3, 4 e 5 se mantêm sempre atualizados sozinhos**. O Bloco 2
+continua precisando de atualização manual (mesmo processo de hoje: você
 exporta a planilha/CSV e me manda). O Bloco 3 atualiza por enquanto só as
 safras fechadas (campo `world`); as colunas "correntes" e os recortes por
 país/importador/esmagamento ficam para uma próxima iteração.
@@ -48,6 +48,7 @@ seu-repo/
     ├── fetch_clima.py
     ├── fetch_hedge_funds.py
     ├── fetch_oferta_demanda.py
+    ├── fetch_prices.py
     └── main.py
 ```
 
@@ -104,6 +105,15 @@ plena — sandboxes de desenvolvimento costumam bloquear esses domínios):
   Production=28, Domestic Consumption=125, Ending Stocks=176. Os
   códigos de commodity (soja=2222000, milho=0440000 — zero à esquerda
   obrigatório, algodao=2631000) foram confirmados contra dados reais.
+- **`fetch_prices.py`** — validado em 2026-08-11. Usa `yfinance` (Yahoo
+  Finance) para CBOT soja/milho (`ZS=F`/`ZC=F`) e ICE algodão (`CT=F`), e a
+  API do Banco Central (SGS série 1) para USD/BRL. A conversão de unidade
+  (ZS=F e ZC=F vêm em centavos de dólar por bushel, por isso o script
+  divide por 100; CT=F já vem em ¢/lb, sem conversão) foi conferida contra
+  cotações reais do dia (soja ~US$11,68 vs. ~US$11,60 de referência, milho
+  ~US$4,61 vs. ~US$4,40, algodão ~83,8¢ vs. ~81-83¢, USD/BRL 5,1285 vs.
+  ~5,10-5,11) — dentro da margem esperada por causa do timing exato do
+  fechamento semanal.
 
 Todos os scripts usam `scripts/inject_utils.py` para gravar o resultado de
 volta no `index.html`, substituindo o `const NOME_DA_VARIAVEL = {...}`
