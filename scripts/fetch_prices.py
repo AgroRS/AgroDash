@@ -156,7 +156,7 @@ def update_html(html_path: str) -> str:
 
 
 if __name__ == "__main__":
-    path = sys.argv[1] if len(sys.argv) > 1 else "dashagro_completo.html"
+    path = sys.argv[1] if len(sys.argv) > 1 else "../members/mig7lpqvfqpa36k5v3u8rc98/index.html"
     new_html = update_html(path)
     save_html(path, new_html)
     print(f"[precos] DATA (CBOT/ICE/USD-BRL) atualizado em {path}")

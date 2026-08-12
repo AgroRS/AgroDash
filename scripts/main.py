@@ -3,8 +3,12 @@ Orquestrador — roda os fetchers habilitados, em ordem, sobre o mesmo
 arquivo HTML. Cada fetcher é independente: se um falhar, os outros ainda
 devem rodar (fica registrado no log do GitHub Actions, mas não trava tudo).
 
+Roda sobre o dashboard completo (área de membros), não sobre o
+index.html da raiz — esse último é a amostra grátis (só Bloco 1) e não
+tem os marcadores `const` que os fetchers procuram.
+
 Uso:
-    python scripts/main.py dashagro_completo.html
+    python scripts/main.py ../members/mig7lpqvfqpa36k5v3u8rc98/index.html
 """
 import sys
 import traceback
@@ -29,7 +33,7 @@ def run_step(name, fn, path):
 
 
 def main():
-    path = sys.argv[1] if len(sys.argv) > 1 else "dashagro_completo.html"
+    path = sys.argv[1] if len(sys.argv) > 1 else "../members/mig7lpqvfqpa36k5v3u8rc98/index.html"
 
     results = {}
     results["clima"] = run_step(
