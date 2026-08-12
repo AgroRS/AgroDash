@@ -30,12 +30,12 @@ jobs:
           USDA_PSD_API_KEY: ${{ secrets.USDA_PSD_API_KEY }}
           NASS_API_KEY: ${{ secrets.NASS_API_KEY }}
         working-directory: scripts
-        run: python main.py ../index.html
+        run: python main.py ../members/mig7lpqvfqpa36k5v3u8rc98/index.html
 
       - name: Commitar alterações (se houver)
         run: |
           git config user.name "dashagro-bot"
           git config user.email "actions@github.com"
-          git add index.html
+          git add members/mig7lpqvfqpa36k5v3u8rc98/index.html
           git diff --staged --quiet && echo "Nada mudou, nada para commitar." || git commit -m "Atualização automática de dados — $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push
