@@ -1,0 +1,45 @@
+name: "[Diagnóstico temporário] USDA PSD — algodão"
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests
+      - name: Dump atributos PSD para algodão (commodity 2631000)
+        env:
+          USDA_PSD_API_KEY: ${{ secrets.USDA_PSD_API_KEY }}
+        run: |
+          python3 <<'PYEOF'
+          import os, json, requests
+          key = os.environ["USDA_PSD_API_KEY"]
+          headers = {"X-Api-Key": key, "Accept": "application/json"}
+          base = "https://api.fas.usda.gov/api"
+
+          attr_map = {row["attributeId"]: row for row in requests.get(f"{base}/psd/commodityAttributes", headers=headers, timeout=30).json()}
+
+          for year in (2026, 2025, 2020):
+              print(f"\n=== algodao (2631000) world, market_year={year} ===")
+              resp = requests.get(f"{base}/psd/commodity/2631000/world/year/{year}", headers=headers, timeout=30)
+              print("status:", resp.status_code)
+              rows = resp.json()
+              for row in rows:
+                  meta = attr_map.get(row["attributeId"], {})
+                  name = meta.get("attributeName")
+                  if name and ("production" in name.lower() or "consumption" in name.lower() or "stocks" in name.lower()):
+                      print(f"  attributeId={row['attributeId']:>4}  name={name!r:45}  value={row['value']!r}  unitId={row.get('unitId')}")
+
+          print("\n=== unidades (psd/unitsOfMeasure, se existir) ===")
+          try:
+              resp = requests.get(f"{base}/psd/unitsOfMeasure", headers=headers, timeout=30)
+              print("status:", resp.status_code)
+              print(json.dumps(resp.json(), ensure_ascii=False)[:3000])
+          except Exception as e:
+              print("erro:", e)
+          PYEOF
