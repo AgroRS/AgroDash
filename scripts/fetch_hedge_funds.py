@@ -36,15 +36,23 @@ MARKETS = {
     "algodao": "COTTON NO. 2 - ICE FUTURES U.S.",
 }
 
-# quantas semanas manter no histórico (None = tudo que a API retornar)
-WEEKS_BACK = 300
+# quantas semanas manter no histórico — ~10 anos de dados semanais (o
+# relatório Legacy COT sai toda semana), com folga
+WEEKS_BACK = 530
 
 
 def fetch_series(market_name: str):
+    # IMPORTANTE: $order DESC + $limit é o que garante pegar as WEEKS_BACK
+    # semanas MAIS RECENTES. Com ASC, o Socrata retorna as primeiras
+    # WEEKS_BACK linhas em ordem cronológica a partir do início da série
+    # (1986 pra soja/milho, 2003 pra algodão) — foi exatamente esse bug que
+    # fez os 3 gráficos mostrarem histórico dos anos 1980/1990/2000 em vez
+    # dos últimos 10 anos. A série é reordenada em ASC de novo logo abaixo,
+    # depois de já ter pego o recorte certo.
     params = {
         "$where": f"market_and_exchange_names = '{market_name}'",
         "$select": "report_date_as_yyyy_mm_dd,noncomm_positions_long_all,noncomm_positions_short_all",
-        "$order": "report_date_as_yyyy_mm_dd ASC",
+        "$order": "report_date_as_yyyy_mm_dd DESC",
         "$limit": str(WEEKS_BACK),
     }
     resp = requests.get(CFTC_BASE, params=params, timeout=30)
