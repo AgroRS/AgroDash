@@ -19,15 +19,19 @@ jobs:
           python3 <<'PYEOF'
           import os, json, time, requests
 
-          def get_with_retry(url, headers, tries=5, timeout=60):
+          def get_with_retry(url, headers, tries=6, timeout=60):
               last_err = None
               for i in range(tries):
                   try:
-                      return requests.get(url, headers=headers, timeout=timeout)
+                      resp = requests.get(url, headers=headers, timeout=timeout)
+                      if resp.status_code == 200 and resp.text.strip():
+                          return resp
+                      print(f"  (tentativa {i+1}/{tries}: status={resp.status_code} body={resp.text[:200]!r} — retry em {5*(i+1)}s)")
+                      last_err = RuntimeError(f"status={resp.status_code} body={resp.text[:200]!r}")
                   except requests.exceptions.RequestException as e:
                       last_err = e
                       print(f"  (tentativa {i+1}/{tries} falhou: {e} — retry em {5*(i+1)}s)")
-                      time.sleep(5*(i+1))
+                  time.sleep(5*(i+1))
               raise last_err
 
           key = os.environ["USDA_PSD_API_KEY"]
