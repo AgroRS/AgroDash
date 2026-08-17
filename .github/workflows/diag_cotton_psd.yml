@@ -17,16 +17,28 @@ jobs:
           USDA_PSD_API_KEY: ${{ secrets.USDA_PSD_API_KEY }}
         run: |
           python3 <<'PYEOF'
-          import os, json, requests
+          import os, json, time, requests
+
+          def get_with_retry(url, headers, tries=5, timeout=60):
+              last_err = None
+              for i in range(tries):
+                  try:
+                      return requests.get(url, headers=headers, timeout=timeout)
+                  except requests.exceptions.RequestException as e:
+                      last_err = e
+                      print(f"  (tentativa {i+1}/{tries} falhou: {e} — retry em {5*(i+1)}s)")
+                      time.sleep(5*(i+1))
+              raise last_err
+
           key = os.environ["USDA_PSD_API_KEY"]
           headers = {"X-Api-Key": key, "Accept": "application/json"}
           base = "https://api.fas.usda.gov/api"
 
-          attr_map = {row["attributeId"]: row for row in requests.get(f"{base}/psd/commodityAttributes", headers=headers, timeout=30).json()}
+          attr_map = {row["attributeId"]: row for row in get_with_retry(f"{base}/psd/commodityAttributes", headers).json()}
 
           for year in (2026, 2025, 2020):
               print(f"\n=== algodao (2631000) world, market_year={year} ===")
-              resp = requests.get(f"{base}/psd/commodity/2631000/world/year/{year}", headers=headers, timeout=30)
+              resp = get_with_retry(f"{base}/psd/commodity/2631000/world/year/{year}", headers)
               print("status:", resp.status_code)
               rows = resp.json()
               for row in rows:
@@ -37,7 +49,7 @@ jobs:
 
           print("\n=== unidades (psd/unitsOfMeasure, se existir) ===")
           try:
-              resp = requests.get(f"{base}/psd/unitsOfMeasure", headers=headers, timeout=30)
+              resp = get_with_retry(f"{base}/psd/unitsOfMeasure", headers)
               print("status:", resp.status_code)
               print(json.dumps(resp.json(), ensure_ascii=False)[:3000])
           except Exception as e:
