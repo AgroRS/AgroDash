@@ -1702,7 +1702,7 @@
       <span class="mark">DASHAGRO</span>
       <h1>Contratos &amp; Câmbio <span>· CBOT &amp; USD/BRL</span></h1>
     </div>
-    <div class="updated">FONTE: CBOT (SOJA/MILHO) · ICE (ALGODÃO) · USD/BRL<br>ATUALIZADO ATÉ: <b id="b5_updatedDate"></b></div>
+    <div class="updated">FONTE: CBOT (SOJA/MILHO) · ICE (ALGODÃO/BRENT) · USD/BRL<br>ATUALIZADO ATÉ: <b id="b5_updatedDate"></b></div>
   </div>
 
   <p class="section-sub" id="b5_sub_intro"></p>
@@ -1728,8 +1728,20 @@
   <p class="section-sub">Contrato futuro US Cotton #2 (ICE), fechamento semanal.</p>
   <div class="table-panel"><div style="position:relative;height:340px;"><canvas id="b5_chart_cotton"></canvas></div></div>
 
+  <h2 class="section-title" style="margin-top:30px;"><b>Petróleo Brent</b> — preço semanal (US$/barril)</h2>
+  <p class="section-sub">Contrato futuro ICE Brent Crude (front month), fechamento semanal.</p>
+  <div class="table-panel"><div style="position:relative;height:340px;"><canvas id="b5_chart_brent"></canvas></div></div>
+
+  <h2 class="section-title" style="margin-top:30px;"><b>Algodão vs. Brent</b> — existe correlação?</h2>
+  <p class="section-sub">Fibras sintéticas (poliéster) são derivadas de petróleo e concorrem diretamente com o algodão — quando o Brent sobe, a fibra sintética fica mais cara e parte da demanda migra pro algodão (e vice-versa). Frete e insumos agrícolas também acompanham o petróleo. Preço do algodão no eixo esquerdo, Brent no eixo direito.</p>
+  <div class="table-panel" style="padding:18px;">
+    <div style="position:relative;height:340px;"><canvas id="b5_chartCottonBrent"></canvas></div>
+    <div id="b5_corrBadge_cottonBrent" style="margin-top:14px;font-family:'Menlo',monospace;font-size:12px;color:var(--foam-dim);"></div>
+  </div>
+
   <div class="source-links">
     <a href="https://www.investing.com/commodities/us-cotton-no.2-historical-data" target="_blank">Investing.com · US Cotton #2 Futures</a>
+    <a href="https://www.investing.com/commodities/brent-oil-historical-data" target="_blank">Investing.com · Brent Crude Oil Futures</a>
   </div>
 
   <footer>
@@ -2530,12 +2542,12 @@ function fmtDate(d){
 
 document.getElementById('b5_updatedDate').textContent = fmtDate(DATA.cbot_soja.current_date);
 document.getElementById('b5_sub_intro').innerHTML =
-  `Preços de fechamento semanal dos contratos futuros CBOT (soja e milho) e da taxa de câmbio USD/BRL — ${DATA.series.length} pontos, jan/2021 a ${fmtDate(DATA.cbot_soja.current_date)}.`;
+  `Preços de fechamento semanal dos contratos futuros CBOT (soja e milho), ICE (algodão e petróleo Brent) e da taxa de câmbio USD/BRL — ${DATA.series.length} pontos, jan/2021 a ${fmtDate(DATA.cbot_soja.current_date)}.`;
 
 function renderStatusCards(){
-  const s = DATA.cbot_soja, m = DATA.cbot_milho, fx = DATA.usdbrl, r = DATA.ratio, ct = DATA.cotton;
+  const s = DATA.cbot_soja, m = DATA.cbot_milho, fx = DATA.usdbrl, r = DATA.ratio, ct = DATA.cotton, br = DATA.brent;
   const el = document.getElementById('b5_statusStrip');
-  const dirS = s.change>=0?'up':'down', dirM = m.change>=0?'up':'down', dirFx = fx.change>=0?'up':'down', dirCt = ct.change>=0?'up':'down';
+  const dirS = s.change>=0?'up':'down', dirM = m.change>=0?'up':'down', dirFx = fx.change>=0?'up':'down', dirCt = ct.change>=0?'up':'down', dirBr = br.change>=0?'up':'down';
   el.innerHTML = `
     <div class="stat-card">
       <div class="cap2">CBOT Soja (${fmtDate(s.current_date)})</div>
@@ -2551,6 +2563,11 @@ function renderStatusCards(){
       <div class="cap2">ICE Algodão (${fmtDate(ct.current_date)})</div>
       <div class="v2">${fmtNum(ct.current)}<small>¢/lb</small></div>
       <div class="delta ${dirCt}">${ct.change>=0?'▲':'▼'} ${fmtNum(Math.abs(ct.change))} vs. semana anterior</div>
+    </div>
+    <div class="stat-card">
+      <div class="cap2">Brent (${fmtDate(br.current_date)})</div>
+      <div class="v2">$${fmtNum(br.current)}<small>/bbl</small></div>
+      <div class="delta ${dirBr}">${br.change>=0?'▲':'▼'} $${fmtNum(Math.abs(br.change))} vs. semana anterior</div>
     </div>
     <div class="stat-card">
       <div class="cap2">USD/BRL (${fmtDate(fx.current_date)})</div>
@@ -2611,12 +2628,62 @@ function makeChart(canvasId, values, color, label, unit, avgLine){
   });
 }
 
+function makeCorrChart(canvasId, badgeId, seriesA, labelA, unitA, colorA, seriesB, labelB, unitB, colorB){
+  const labels = DATA.series.map(s => new Date(s.date+'T00:00:00').toLocaleDateString('pt-BR',{month:'short',year:'2-digit'}));
+  new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: labelA, data: seriesA, borderColor: colorA, backgroundColor: colorA+'33', fill:true,
+          yAxisID:'y', pointRadius:0, borderWidth:1.6, tension:0.3, cubicInterpolationMode:'monotone' },
+        { label: labelB, data: seriesB, borderColor: colorB, backgroundColor: colorB,
+          yAxisID:'y1', pointRadius:0, borderWidth:1.6, tension:0.3, cubicInterpolationMode:'monotone', fill:false },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { position:'bottom', labels:{ color:'#9fb4bf', font:{family:'Menlo',size:10}, boxWidth:12, padding:12 } },
+        tooltip: { backgroundColor:'#0f2a3d', borderColor:'#1e4560', borderWidth:1, titleColor:'#e8f1f3', bodyColor:'#9fb4bf', padding:9,
+          callbacks: { label:(c)=> c.dataset.label+': '+fmtNum(c.raw,2)+(c.datasetIndex===0?unitA:unitB) } }
+      },
+      scales: {
+        x: { ticks:{ color:'#6d8494', font:{family:'Menlo',size:8.5}, maxTicksLimit:18 }, grid:{display:false} },
+        y: { position:'left', ticks:{ color:'#6d8494', font:{family:'Menlo',size:9.5} }, grid:{ color:'rgba(30,69,96,0.3)' },
+          title:{ display:true, text:labelA+unitA, color:'#6d8494', font:{family:'Menlo',size:9.5} } },
+        y1: { position:'right', ticks:{ color:colorB, font:{family:'Menlo',size:9.5} }, grid:{display:false},
+          title:{ display:true, text:labelB+unitB, color:colorB, font:{family:'Menlo',size:9.5} } }
+      }
+    }
+  });
+
+  // correlação de Pearson entre as duas séries, só nas datas onde ambas existem
+  const pairs = DATA.series.filter(s => s.cotton!=null && s.brent!=null).map(s => [s.cotton, s.brent]);
+  const xs = pairs.map(p=>p[0]), ys = pairs.map(p=>p[1]);
+  const n = xs.length;
+  const mean = arr => arr.reduce((a,b)=>a+b,0)/arr.length;
+  const mx = mean(xs), my = mean(ys);
+  let num=0, dx2=0, dy2=0;
+  for(let i=0;i<n;i++){ const dx=xs[i]-mx, dy=ys[i]-my; num+=dx*dy; dx2+=dx*dx; dy2+=dy*dy; }
+  const r = num/Math.sqrt(dx2*dy2);
+  const strength = Math.abs(r) >= 0.7 ? 'forte' : Math.abs(r) >= 0.4 ? 'moderada' : 'fraca';
+  document.getElementById(badgeId).innerHTML =
+    `<b style="color:${r<0?'#e85a5a':'#4caf6d'};">r = ${r.toFixed(2)}</b> — correlação ${strength} e ${r<0?'negativa':'positiva'} entre Algodão e Brent; n=${n} semanas.`;
+}
+
 renderStatusCards();
 makeChart('b5_chart_soja', DATA.series.map(s=>s.cbot_soja), '#4caf6d', 'CBOT Soja', ' US$/bu');
 makeChart('b5_chart_milho', DATA.series.map(s=>s.cbot_milho), '#e0a938', 'CBOT Milho', ' US$/bu');
 makeChart('b5_chart_usdbrl', DATA.series.map(s=>s.usdbrl), '#5b9bd5', 'USD/BRL', '');
 makeChart('b5_chart_ratio', DATA.ratio.series, '#e8734a', 'Soja/Milho', 'x', 2.5);
 makeChart('b5_chart_cotton', DATA.series.map(s=>s.cotton), '#c25a37', 'ICE Algodão', ' ¢/lb');
+makeChart('b5_chart_brent', DATA.series.map(s=>s.brent), '#3fa7a0', 'Brent', ' US$/bbl');
+makeCorrChart('b5_chartCottonBrent', 'b5_corrBadge_cottonBrent',
+  DATA.series.map(s=>s.cotton), 'ICE Algodão', ' ¢/lb', '#c25a37',
+  DATA.series.map(s=>s.brent), 'Brent', ' US$/bbl', '#3fa7a0');
 
 })();
 </script>
