@@ -17,6 +17,8 @@ como estavam, porque a NOAA não publica previsão em formato de arquivo
 baixável — isso normalmente exige atualização manual periódica olhando
 https://origin.cpc.ncep.noaa.gov/products/analysis_monitoring/ensostuff/ONI_v5.php
 """
+import datetime
+import re
 import sys
 import requests
 
@@ -29,6 +31,53 @@ SEASON_TO_MONTH = {
     "DJF": 1, "JFM": 2, "FMA": 3, "MAM": 4, "AMJ": 5, "MJJ": 6,
     "JJA": 7, "JAS": 8, "ASO": 9, "SON": 10, "OND": 11, "NDJ": 12,
 }
+
+MESES_PT = {
+    1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
+    7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ",
+}
+
+BANNER_RE = re.compile(
+    r"ATUALIZADO EM <b>[^<]*</b><br>PRÓXIMA DISCUSSÃO CPC/NOAA · [^<]*"
+)
+
+
+def _fmt_data_pt(d: datetime.date) -> str:
+    return f"{d.day:02d} {MESES_PT[d.month]} {d.year}"
+
+
+def _segunda_quinta(ano: int, mes: int) -> datetime.date:
+    """A CPC/NOAA publica a discussão ENSO sempre na 2ª quinta-feira do mês."""
+    primeiro = datetime.date(ano, mes, 1)
+    offset_1a_quinta = (3 - primeiro.weekday()) % 7  # weekday(): quinta = 3
+    primeira_quinta = primeiro + datetime.timedelta(days=offset_1a_quinta)
+    return primeira_quinta + datetime.timedelta(days=7)
+
+
+def datas_discussao_enso(hoje: datetime.date):
+    """Retorna (última discussão publicada, próxima discussão) com base na
+    regra da 2ª quinta-feira do mês — evita depender de atualização manual
+    periódica que sempre acaba ficando desatualizada."""
+    quinta_deste_mes = _segunda_quinta(hoje.year, hoje.month)
+    if hoje >= quinta_deste_mes:
+        ultima = quinta_deste_mes
+        prox_ano, prox_mes = (hoje.year + 1, 1) if hoje.month == 12 else (hoje.year, hoje.month + 1)
+        proxima = _segunda_quinta(prox_ano, prox_mes)
+    else:
+        proxima = quinta_deste_mes
+        ant_ano, ant_mes = (hoje.year - 1, 12) if hoje.month == 1 else (hoje.year, hoje.month - 1)
+        ultima = _segunda_quinta(ant_ano, ant_mes)
+    return ultima, proxima
+
+
+def update_banner(html: str, hoje: datetime.date = None) -> str:
+    hoje = hoje or datetime.date.today()
+    ultima, proxima = datas_discussao_enso(hoje)
+    novo_texto = (
+        f"ATUALIZADO EM <b>{_fmt_data_pt(ultima)}</b><br>"
+        f"PRÓXIMA DISCUSSÃO CPC/NOAA · {_fmt_data_pt(proxima)}"
+    )
+    return BANNER_RE.sub(novo_texto, html, count=1)
 
 
 def fetch_oni_real_data():
@@ -70,6 +119,7 @@ def update_html(html_path: str) -> str:
     merged.sort(key=lambda r: (r["year"], r["month"]))
 
     html = replace_const(html, "ONI_SERIES", merged)
+    html = update_banner(html)
     return html
 
 
