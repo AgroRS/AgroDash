@@ -1,10 +1,16 @@
 """
 Bloco 5 · Contratos & Câmbio — atualiza DATA (cbot_soja/cbot_milho/cotton/
-usdbrl/ratio) a partir de duas fontes públicas e gratuitas:
+brent/usdbrl/ratio) a partir de duas fontes públicas e gratuitas:
 
-  - CBOT (soja, milho) e ICE (algodão): Yahoo Finance, via a biblioteca
-    `yfinance` (não-oficial, mas amplamente usada e estável; não exige
-    chave de API). Tickers: ZS=F (soja), ZC=F (milho), CT=F (algodão).
+  - CBOT (soja, milho), ICE (algodão) e petróleo Brent: Yahoo Finance, via
+    a biblioteca `yfinance` (não-oficial, mas amplamente usada e estável;
+    não exige chave de API). Tickers: ZS=F (soja), ZC=F (milho), CT=F
+    (algodão), BZ=F (Brent — ICE Brent Crude Futures).
+    Brent foi adicionado por ter alta correlação histórica com o preço do
+    algodão (fibra sintética/petroquímica compete com o algodão, e custo
+    de frete/insumo agrícola também segue o petróleo). Preferido a
+    scraping de site (ex.: Investing.com) por ser a mesma fonte já
+    validada e estável usada pelos outros 3 contratos deste script.
   - USD/BRL: API oficial do Banco Central do Brasil (SGS — Sistema
     Gerenciador de Séries Temporais), série 1 (dólar de venda, diário).
     https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados/ultimos/N?formato=json
@@ -38,6 +44,7 @@ TICKERS = {
     "cbot_soja": ("ZS=F", 100.0),   # (ticker, divisor de unidade)
     "cbot_milho": ("ZC=F", 100.0),
     "cotton": ("CT=F", 1.0),
+    "brent": ("BZ=F", 1.0),         # US$/barril, já na unidade certa
 }
 
 BCB_USDBRL_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados/ultimos/10?formato=json"
@@ -118,7 +125,7 @@ def update_html(html_path: str) -> str:
     by_date = {s["date"]: s for s in data["series"]}
     for td in candidate_dates:
         row = by_date.get(td, {"date": td})
-        for field in ["cbot_soja", "cbot_milho", "cotton", "usdbrl"]:
+        for field in ["cbot_soja", "cbot_milho", "cotton", "brent", "usdbrl"]:
             if td in fetched.get(field, {}):
                 row[field] = fetched[field][td]
         by_date[td] = row
@@ -142,6 +149,7 @@ def update_html(html_path: str) -> str:
     data["cbot_soja"] = stats("cbot_soja")
     data["cbot_milho"] = stats("cbot_milho")
     data["cotton"] = stats("cotton")
+    data["brent"] = stats("brent")
     data["usdbrl"] = stats("usdbrl")
 
     ratios = [round(s["cbot_soja"] / s["cbot_milho"], 3) for s in data["series"] if "cbot_soja" in s and "cbot_milho" in s]
