@@ -2247,8 +2247,8 @@ function renderStatusCards(key){
   const cur = data.world[data.cur2];
   const prev = data.world[data.cur];
   const lastSeason = data.world['2024/25'];
-  const ratioCur = (cur.end/cur.cons*100);
-  const ratioLast = (lastSeason.end/lastSeason.cons*100);
+  const ratioCur = (cur.cons!=null) ? (cur.end/cur.cons*100) : null;
+  const ratioLast = (lastSeason.cons!=null) ? (lastSeason.end/lastSeason.cons*100) : null;
   const priceCur = data.price[data.cur2], priceLast = data.price['2024/25'];
   const el = document.getElementById('b3_statusStrip_'+key);
   el.innerHTML = `
@@ -2259,8 +2259,8 @@ function renderStatusCards(key){
     </div>
     <div class="stat-card">
       <div class="cap2">Relação estoque/consumo</div>
-      <div class="v2">${ratioCur.toFixed(1)}<small>%</small></div>
-      <div class="delta">vs. ${ratioLast.toFixed(1)}% no fechamento 2024/25</div>
+      <div class="v2">${ratioCur!=null ? ratioCur.toFixed(1) : 'n/d'}<small>%</small></div>
+      <div class="delta">${ratioLast!=null ? 'vs. '+ratioLast.toFixed(1)+'% no fechamento 2024/25' : 'sem dado de consumo em 2024/25'}</div>
     </div>
     <div class="stat-card">
       <div class="cap2">Produção mundial (${data.colDisplay[data.cur2]})</div>
