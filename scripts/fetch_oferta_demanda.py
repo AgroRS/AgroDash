@@ -35,6 +35,7 @@ Estrutura esperada de CROPS (ver index.html, bloco b3):
 """
 import os
 import sys
+import time
 import requests
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
@@ -56,20 +57,44 @@ ATTR_NAMES = {
     "end": "Ending Stocks",
 }
 
+# a API do USDA/PSD reporta essas quantidades em milhares de unidade (1000 MT
+# pra soja/milho, 1000 fardos de 480 lb pro algodão) — o dashboard exibe em
+# milhões, daí a divisão. Confirmado comparando contra a safra corrente (que
+# já tinha sido preenchida manualmente na escala certa): sem essa divisão,
+# as safras fechadas (auto-fetch) ficavam 1000x maiores que a safra corrente
+# (manual) na mesma tabela.
+UNIT_DIVISOR = 1000
+
 HEADERS = {"X-Api-Key": PSD_API_KEY, "Accept": "application/json"} if PSD_API_KEY else {}
+
+
+def _get_with_retry(url: str, tries: int = 5, timeout: int = 60):
+    """A api.fas.usda.gov tem se mostrado instável (timeouts e respostas
+    vazias intermitentes) — retry com backoff evita que uma falha passageira
+    derrube a atualização inteira."""
+    last_err = None
+    for attempt in range(tries):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=timeout)
+            if resp.status_code == 200 and resp.text.strip():
+                return resp
+            last_err = RuntimeError(f"status={resp.status_code} body={resp.text[:200]!r}")
+        except requests.exceptions.RequestException as e:
+            last_err = e
+        if attempt < tries - 1:
+            time.sleep(5 * (attempt + 1))
+    raise last_err
 
 
 def fetch_attribute_map() -> dict:
     """attributeId -> attributeName, válido para todos os commodities."""
-    resp = requests.get(f"{PSD_BASE}/psd/commodityAttributes", headers=HEADERS, timeout=30)
-    resp.raise_for_status()
+    resp = _get_with_retry(f"{PSD_BASE}/psd/commodityAttributes")
     return {row["attributeId"]: row["attributeName"] for row in resp.json()}
 
 
 def fetch_commodity_year(commodity_code: str, market_year: int):
     url = f"{PSD_BASE}/psd/commodity/{commodity_code}/world/year/{market_year}"
-    resp = requests.get(url, headers=HEADERS, timeout=30)
-    resp.raise_for_status()
+    resp = _get_with_retry(url)
     return resp.json()
 
 
@@ -82,7 +107,10 @@ def build_crop_update(commodity_code: str, years: list, attr_map: dict):
             name = attr_map.get(row["attributeId"])
             if name in ATTR_NAMES.values():
                 attrs[name] = row["value"]
-        world[year] = {key: attrs.get(name) for key, name in ATTR_NAMES.items()}
+        world[year] = {
+            key: (round(attrs[name] / UNIT_DIVISOR, 3) if attrs.get(name) is not None else None)
+            for key, name in ATTR_NAMES.items()
+        }
     return world
 
 
@@ -114,7 +142,7 @@ def update_html(html_path: str) -> str:
 
 
 if __name__ == "__main__":
-    path = sys.argv[1] if len(sys.argv) > 1 else "dashagro_completo.html"
+    path = sys.argv[1] if len(sys.argv) > 1 else "../members/mig7lpqvfqpa36k5v3u8rc98/index.html"
     new_html = update_html(path)
     save_html(path, new_html)
     print(f"[oferta_demanda] CROPS (world) atualizado em {path}")
