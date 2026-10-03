@@ -12,11 +12,13 @@ e publica o resultado como um link público fixo via GitHub Pages.
 | 4 · Hedge Funds | CFTC (Legacy COT) | ✅ Pronto e validado com chamada real — sem chave necessária |
 | 3 · Oferta & Demanda | USDA/FAS PSD | ✅ Pronto e validado com chamada real — precisa da chave `USDA_PSD_API_KEY` (ver passo 4 do Setup) |
 | 5 · Contratos & Câmbio | Yahoo Finance (CBOT soja/milho, ICE algodão) + Banco Central do Brasil (USD/BRL) | ✅ Pronto e validado com chamada real — sem chave necessária |
-| 2 · Condições de lavoura | Conab, USDA/NASS, Bolsa de Cereales | ❌ Não incluído ainda (Conab e Bolsa de Cereales não têm API pública; NASS tem, pode ser adicionado depois) |
+| 2 · Condições de lavoura (EUA) | USDA/NASS Quick Stats | ✅ Pronto e validado com chamada real — precisa da chave `NASS_API_KEY` (ver passo 4b do Setup) |
+| 2 · Condições de lavoura (Brasil/Argentina) | Conab, Bolsa de Cereales | ⚠️ Sem API pública (investigado a fundo — ver nota abaixo); `scripts/update_conab.py` tira o trabalho de editar o HTML na mão |
 
-Ou seja: depois de configurado (e com a chave do Bloco 3 cadastrada), **os
-Blocos 1, 3, 4 e 5 se mantêm sempre atualizados sozinhos**. O Bloco 2
-continua precisando de atualização manual (mesmo processo de hoje: você
+Ou seja: depois de configurado (e com as chaves dos Blocos 2 e 3
+cadastradas), **os Blocos 1, 2 (parte EUA), 3, 4 e 5 se mantêm sempre
+atualizados sozinhos**. Conab e Bolsa de Cereales (parte do Bloco 2)
+continuam precisando de atualização manual (mesmo processo de hoje: você
 exporta a planilha/CSV e me manda). O Bloco 3 atualiza por enquanto só as
 safras fechadas (campo `world`); as colunas "correntes" e os recortes por
 país/importador/esmagamento ficam para uma próxima iteração.
@@ -49,6 +51,9 @@ seu-repo/
     ├── fetch_hedge_funds.py
     ├── fetch_oferta_demanda.py
     ├── fetch_prices.py
+    ├── fetch_eua_condicoes.py
+    ├── update_conab.py
+    ├── conab_update.example.json
     └── main.py
 ```
 
@@ -71,10 +76,48 @@ Esse link **nunca muda** — sempre mostra a versão mais recente do arquivo.
 Sem esse passo, o script do Bloco 3 simplesmente não roda (os outros dois
 continuam funcionando normalmente).
 
+### 4b. Chave da API do USDA/NASS (só se for ligar o Bloco 2 · EUA)
+1. Acesse https://quickstats.nass.usda.gov/api
+2. Preencha o formulário "Request an API Key" (chega por e-mail em minutos)
+3. No repositório GitHub, mesmo caminho do passo anterior: **New
+   repository secret**
+4. Nome: `NASS_API_KEY` · Valor: cole a chave recebida
+
+Sem esse passo, o script `fetch_eua_condicoes.py` simplesmente não roda
+(os outros continuam funcionando normalmente).
+
 ### 5. Testar
 Em **Actions**, escolha o workflow "Atualizar DashAgro" e clique em **Run
 workflow** para rodar manualmente uma vez e conferir se está tudo certo,
 antes de esperar a próxima sexta-feira.
+
+## Atualização manual do Bloco 2 (Brasil · Conab)
+
+A Conab não publica o progresso semanal de Plantio/Colheita como dado
+estruturado (API/CSV/JSON) — só como boletim em PDF (ver investigação
+detalhada mais abaixo). Em vez de editar o `index.html` na mão toda
+semana, use `scripts/update_conab.py`:
+
+1. Leia os números do boletim mais recente (ou me manda o boletim que eu
+   leio pra você).
+2. Preencha um JSON no formato de `scripts/conab_update.example.json` —
+   um objeto por cultura/estágio que o boletim trouxe, com a semana
+   (`"DD/MM"`), o percentual nacional, e opcionalmente os percentuais
+   por estado.
+3. Rode:
+   ```
+   python scripts/update_conab.py sua_atualizacao.json index.html
+   ```
+
+O script só aceita semanas que já existem no "molde" de `BRA_NATIONAL`
+(a lista `labels`, que já cobre toda a janela possível da safra, ex.:
+maio–outubro para colheita de algodão) — isso é proposital: a primeira
+versão do script anexava semanas novas cegamente no fim da lista, o que
+bagunçava a ordem cronológica do eixo do gráfico se a semana informada
+não seguisse exatamente o espaçamento semanal já usado. Se a janela
+precisar crescer (ex.: colheita atrasou além de outubro), isso é uma
+decisão manual — editar `labels` direto — não algo que o script deve
+inferir sozinho.
 
 ## Agendamento
 
@@ -114,6 +157,56 @@ plena — sandboxes de desenvolvimento costumam bloquear esses domínios):
   ~US$4,61 vs. ~US$4,40, algodão ~83,8¢ vs. ~81-83¢, USD/BRL 5,1285 vs.
   ~5,10-5,11) — dentro da margem esperada por causa do timing exato do
   fechamento semanal.
+- **`fetch_eua_condicoes.py`** — validado em 2026-08-11, depois de 4
+  bugs reais encontrados e corrigidos contra a API de verdade:
+  1. `group_desc: "SOIL"` não existe na taxonomia da API — removido.
+  2. `short_desc` com a ordem das palavras errada ("SOIL, MOISTURE,
+     SUBSOIL..." em vez de "SOIL, SUBSOIL - MOISTURE...").
+  3. `sector_desc: "ENVIRONMENTAL"` errado — umidade de solo do Crop
+     Progress fica em `sector_desc: "CROPS"`, mesmo setor da condição
+     de lavoura.
+  4. O mais sutil: o script rodava sem erro e reportava sucesso, mas
+     não atualizava nada. O `week_ending` da API é sempre um domingo;
+     o dashboard rotula cada semana pela sexta-feira seguinte (+5
+     dias). Sem esse ajuste, a busca por rótulo de semana nunca batia
+     — um no-op silencioso, só percebido comparando o diff real do
+     `git commit` (nenhuma mudança) contra o esperado. Depois de
+     corrigido, os valores batem exatamente com o Crop Progress
+     publicado (DTN/Brownfield): milho 61% e soja 63% good-to-excellent
+     na semana de 02/08/2026, entre outras semanas conferidas.
+- **`update_conab.py`** — não busca nada da internet (ver por quê logo
+  abaixo), então "validar" aqui significou testar contra uma cópia do
+  `index.html` real: confirma que só `BRA_NATIONAL`/`BRA_STATE_SNAPSHOT`
+  mudam (o resto do arquivo fica intacto), que uma falha (semana
+  inexistente) não deixa o arquivo pela metade, e que os valores caem
+  no índice certo de `labels` sem bagunçar a ordem cronológica.
+
+### Conab e Bolsa de Cereales (Bloco 2 · Brasil/Argentina): investigação de API
+
+Pesquisado a fundo em 2026-08-11, testando contra a internet real (2
+rodadas, 4 fontes): **não existe API/CSV pública para automatizar** o
+progresso semanal de Plantio/Colheita da Conab.
+- A API CKAN de `dados.gov.br` (portal genérico do governo) responde
+  403/401 sem uma chave própria, e não há garantia de que o dataset
+  exista lá mesmo com chave.
+- A URL `conab.gov.br/info-agro/safras/progresso-de-safra` não é uma
+  página de dados — redireciona para o portal institucional genérico
+  da Conab (confirmado: mesmo HTML, mesmo tamanho em bytes, que a
+  página de "dados abertos" da Conab).
+- A única fonte oficial real encontrada, o "Boletim da Safra de
+  Grãos", é um **PDF mensal**, não um CSV/API semanal.
+
+Conclusão: a Conab publica isso só como boletim em PDF. O fluxo manual
+continua sendo o caminho — `update_conab.py` (acima) reduz o trabalho
+de "ler o boletim e editar HTML na mão" para "ler o boletim e preencher
+um JSON pequeno".
+
+Bolsa de Cereales (Argentina) parou de publicar os relatórios semanais
+de "Estado y Condición de Cultivos" (o próprio `index.html` já
+documenta isso) — não há o que automatizar até eles retomarem. Achei
+um dataset oficial alternativo (MAGyP, `datos.magyp.gob.ar`, com API),
+mas ele traz produção/rendimento, não condição semanal de lavoura — não
+serve para esse gráfico específico sem redesenhar o bloco.
 
 Todos os scripts usam `scripts/inject_utils.py` para gravar o resultado de
 volta no `index.html`, substituindo o `const NOME_DA_VARIAVEL = {...}`
