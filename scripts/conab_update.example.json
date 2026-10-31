@@ -1,0 +1,16 @@
+{
+  "season": "2025/26",
+  "updates": [
+    {
+      "crop_stage": "Algodão|Colheita",
+      "week": "06/08",
+      "national_pct": 33.9,
+      "states": {"MT": 38.2, "BA": 25.0}
+    },
+    {
+      "crop_stage": "Milho 2ª safra|Colheita",
+      "week": "06/08",
+      "national_pct": 74.6
+    }
+  ]
+}
