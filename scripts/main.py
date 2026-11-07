@@ -3,8 +3,12 @@ Orquestrador — roda os fetchers habilitados, em ordem, sobre o mesmo
 arquivo HTML. Cada fetcher é independente: se um falhar, os outros ainda
 devem rodar (fica registrado no log do GitHub Actions, mas não trava tudo).
 
+Roda sobre o dashboard completo (área de membros), não sobre o
+index.html da raiz — esse último é a amostra grátis (só Bloco 1) e não
+tem os marcadores `const` que os fetchers procuram.
+
 Uso:
-    python scripts/main.py dashagro_completo.html
+    python scripts/main.py ../members/mig7lpqvfqpa36k5v3u8rc98/index.html
 """
 import sys
 import traceback
@@ -13,6 +17,7 @@ import fetch_clima
 import fetch_hedge_funds
 import fetch_oferta_demanda
 import fetch_prices
+import fetch_eua_condicoes
 
 
 def run_step(name, fn, path):
@@ -28,7 +33,7 @@ def run_step(name, fn, path):
 
 
 def main():
-    path = sys.argv[1] if len(sys.argv) > 1 else "dashagro_completo.html"
+    path = sys.argv[1] if len(sys.argv) > 1 else "../members/mig7lpqvfqpa36k5v3u8rc98/index.html"
 
     results = {}
     results["clima"] = run_step(
@@ -49,6 +54,11 @@ def main():
     results["precos"] = run_step(
         "precos (CBOT/ICE/USD-BRL)",
         lambda p: fetch_prices.save_html(p, fetch_prices.update_html(p)),
+        path,
+    )
+    results["eua_condicoes"] = run_step(
+        "eua_condicoes (NASS)",
+        lambda p: fetch_eua_condicoes.save_html(p, fetch_eua_condicoes.update_html(p)),
         path,
     )
 
